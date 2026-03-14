@@ -19,6 +19,7 @@ export interface DownloadJob {
   eta: string;
   size: string;
   error?: string;
+  filePath?: string;
   addedAt: number;
 }
 

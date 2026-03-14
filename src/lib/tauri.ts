@@ -45,6 +45,14 @@ export async function cancelDownload(jobId: string): Promise<void> {
   return invoke<void>("cancel_download", { jobId });
 }
 
+export async function openFile(path: string): Promise<void> {
+  return invoke<void>("open_file", { path });
+}
+
+export async function revealFile(path: string): Promise<void> {
+  return invoke<void>("reveal_file", { path });
+}
+
 export async function listenJobEvents(
   handler: (event: JobEvent) => void
 ): Promise<() => void> {

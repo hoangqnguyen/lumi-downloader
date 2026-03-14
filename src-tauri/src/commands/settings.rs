@@ -28,3 +28,17 @@ pub fn open_folder(app: AppHandle, path: String) -> Result<(), String> {
         .open_path(path, None::<&str>)
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn open_file(app: AppHandle, path: String) -> Result<(), String> {
+    app.opener()
+        .open_path(path, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reveal_file(app: AppHandle, path: String) -> Result<(), String> {
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|e| e.to_string())
+}

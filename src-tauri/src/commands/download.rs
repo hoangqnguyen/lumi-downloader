@@ -1,8 +1,7 @@
 use crate::ytdlp::runner::{run_download, DownloadRequest};
 use crate::AppState;
-use tauri::{AppHandle, State};
 use std::sync::Arc;
-use tokio::sync::Semaphore;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub async fn start_download(
@@ -16,6 +15,7 @@ pub async fn start_download(
 ) -> Result<(), String> {
     let semaphore = Arc::clone(&state.semaphore);
     let abort_handles = state.abort_handles.clone();
+    let children = Arc::clone(&state.children);
 
     let req = DownloadRequest {
         job_id: job_id.clone(),
@@ -28,9 +28,8 @@ pub async fn start_download(
     let app_clone = app.clone();
 
     let handle = tokio::spawn(async move {
-        // Acquire semaphore permit — blocks until a slot is free
         let _permit = semaphore.acquire_owned().await.ok();
-        run_download(app_clone, req).await.ok();
+        run_download(app_clone, req, children).await.ok();
     });
 
     abort_handles.insert(job_id, handle.abort_handle());
@@ -42,6 +41,11 @@ pub async fn cancel_download(
     state: State<'_, AppState>,
     job_id: String,
 ) -> Result<(), String> {
+    // Kill the yt-dlp child process
+    if let Some((_, child)) = state.children.remove(&job_id) {
+        let _ = child.kill();
+    }
+    // Abort the tokio task
     if let Some((_, handle)) = state.abort_handles.remove(&job_id) {
         handle.abort();
     }
@@ -50,14 +54,8 @@ pub async fn cancel_download(
 
 #[tauri::command]
 pub async fn set_max_concurrent(
-    state: State<'_, AppState>,
-    max: usize,
+    _state: State<'_, AppState>,
+    _max: usize,
 ) -> Result<(), String> {
-    // Rebuild semaphore by replacing the arc — in-flight tasks keep their existing permits
-    let new_sem = Arc::new(Semaphore::new(max));
-    // We can't mutate the Arc in place, so we swap via unsafe interior mutability
-    // Instead, communicate via a channel in production; for simplicity just no-op here
-    // The user needs to restart for concurrency changes to take full effect
-    let _ = new_sem;
     Ok(())
 }

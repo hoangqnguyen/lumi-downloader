@@ -138,6 +138,11 @@ export function handleJobEvent(event: JobEvent) {
       updateJob(job_id, { status: "merging", percent: 100, speed: "", eta: "" });
       break;
     }
+    case "FilePath": {
+      const f = data as { path: string };
+      updateJob(job_id, { filePath: f.path });
+      break;
+    }
     case "Done": {
       const d = data as { success: boolean; error?: string };
       if (d.success) {

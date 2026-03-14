@@ -1,7 +1,9 @@
 use crate::ytdlp::progress::{parse_line, ParsedLine};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DownloadRequest {
@@ -29,13 +31,20 @@ pub enum JobEventPayload {
         eta: String,
     },
     Merging,
+    FilePath {
+        path: String,
+    },
     Done {
         success: bool,
         error: Option<String>,
     },
 }
 
-pub async fn run_download(app: AppHandle, req: DownloadRequest) -> Result<(), String> {
+pub async fn run_download(
+    app: AppHandle,
+    req: DownloadRequest,
+    children: Arc<DashMap<String, CommandChild>>,
+) -> Result<(), String> {
     let args = build_args(&req);
 
     let sidecar = app
@@ -44,9 +53,11 @@ pub async fn run_download(app: AppHandle, req: DownloadRequest) -> Result<(), St
         .map_err(|e| format!("Failed to find yt-dlp sidecar: {e}"))?
         .args(&args);
 
-    let (mut rx, _child) = sidecar
+    let (mut rx, child) = sidecar
         .spawn()
         .map_err(|e| format!("Failed to spawn yt-dlp: {e}"))?;
+
+    children.insert(req.job_id.clone(), child);
 
     let mut error_lines: Vec<String> = Vec::new();
 
@@ -54,56 +65,98 @@ pub async fn run_download(app: AppHandle, req: DownloadRequest) -> Result<(), St
         use tauri_plugin_shell::process::CommandEvent;
         match event {
             CommandEvent::Stdout(bytes) => {
-                let line = String::from_utf8_lossy(&bytes).into_owned();
-                let line = line.trim();
-                match parse_line(line) {
-                    ParsedLine::Progress(p) => {
-                        let _ = app.emit(
-                            "job-event",
-                            JobEvent {
-                                job_id: req.job_id.clone(),
-                                payload: JobEventPayload::Progress {
-                                    percent: p.percent,
-                                    size: p.size,
-                                    speed: p.speed,
-                                    eta: p.eta,
+                let text = String::from_utf8_lossy(&bytes).into_owned();
+                for line in text.lines() {
+                    let line = line.trim();
+                    match parse_line(line) {
+                        ParsedLine::Progress(p) => {
+                            let _ = app.emit(
+                                "job-event",
+                                JobEvent {
+                                    job_id: req.job_id.clone(),
+                                    payload: JobEventPayload::Progress {
+                                        percent: p.percent,
+                                        size: p.size,
+                                        speed: p.speed,
+                                        eta: p.eta,
+                                    },
                                 },
-                            },
-                        );
-                    }
-                    ParsedLine::Merging => {
-                        let _ = app.emit(
-                            "job-event",
-                            JobEvent {
-                                job_id: req.job_id.clone(),
-                                payload: JobEventPayload::Merging,
-                            },
-                        );
-                    }
-                    ParsedLine::AlreadyDownloaded => {
-                        let _ = app.emit(
-                            "job-event",
-                            JobEvent {
-                                job_id: req.job_id.clone(),
-                                payload: JobEventPayload::Done {
-                                    success: true,
-                                    error: None,
+                            );
+                        }
+                        ParsedLine::Merging => {
+                            let _ = app.emit(
+                                "job-event",
+                                JobEvent {
+                                    job_id: req.job_id.clone(),
+                                    payload: JobEventPayload::Merging,
                                 },
-                            },
-                        );
-                        return Ok(());
+                            );
+                        }
+                        ParsedLine::FinalPath(path) => {
+                            let _ = app.emit(
+                                "job-event",
+                                JobEvent {
+                                    job_id: req.job_id.clone(),
+                                    payload: JobEventPayload::FilePath { path },
+                                },
+                            );
+                        }
+                        ParsedLine::AlreadyDownloaded => {
+                            let _ = app.emit(
+                                "job-event",
+                                JobEvent {
+                                    job_id: req.job_id.clone(),
+                                    payload: JobEventPayload::Done {
+                                        success: true,
+                                        error: None,
+                                    },
+                                },
+                            );
+                            return Ok(());
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
             CommandEvent::Stderr(bytes) => {
-                let line = String::from_utf8_lossy(&bytes).into_owned();
-                let line = line.trim().to_string();
-                if !line.is_empty() {
-                    error_lines.push(line);
+                let text = String::from_utf8_lossy(&bytes).into_owned();
+                for line in text.lines() {
+                    let line = line.trim();
+                    // yt-dlp routes progress to stderr when not in a TTY
+                    match parse_line(line) {
+                        ParsedLine::Progress(p) => {
+                            let _ = app.emit(
+                                "job-event",
+                                JobEvent {
+                                    job_id: req.job_id.clone(),
+                                    payload: JobEventPayload::Progress {
+                                        percent: p.percent,
+                                        size: p.size,
+                                        speed: p.speed,
+                                        eta: p.eta,
+                                    },
+                                },
+                            );
+                        }
+                        ParsedLine::Merging => {
+                            let _ = app.emit(
+                                "job-event",
+                                JobEvent {
+                                    job_id: req.job_id.clone(),
+                                    payload: JobEventPayload::Merging,
+                                },
+                            );
+                        }
+                        _ => {
+                            if !line.is_empty() {
+                                error_lines.push(line.to_string());
+                            }
+                        }
+                    }
                 }
             }
             CommandEvent::Terminated(status) => {
+                children.remove(&req.job_id);
                 let success = status.code == Some(0);
                 let error = if success {
                     None
@@ -131,7 +184,19 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
         "--newline".into(),
         "--no-colors".into(),
         "--no-playlist".into(),
-        "--windows-filenames".into(),
+        "--progress".into(),
+        "--progress-template".into(),
+        "download:YTDLP_PROG:%(progress._percent_str)s:%(progress._total_bytes_str)s:%(progress._speed_str)s:%(progress._eta_str)s".into(),
+        // Strip characters illegal on Windows/macOS/Linux instead of replacing with fullwidth unicode
+        "--replace-in-metadata".into(),
+        "title".into(),
+        "[/\\\\:*?\"<>|]".into(),
+        "".into(),
+        // Trim leading/trailing dots and spaces (Windows rejects filenames ending with them)
+        "--replace-in-metadata".into(),
+        "title".into(),
+        "^[\\s.]+|[\\s.]+$".into(),
+        "".into(),
         "-o".into(),
         format!("{}/%(title)s.%(ext)s", req.output_dir),
     ];
@@ -159,6 +224,12 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
     args.extend([
         "--embed-thumbnail".into(),
         "--add-metadata".into(),
+    ]);
+
+    // Print final file path after all post-processing (merge, conversion, etc.)
+    args.extend([
+        "--print".into(),
+        "after_move:YTDL_FINAL:%(filepath)s".into(),
     ]);
 
     args.push(req.url.clone());

@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { DownloadJob } from "../types";
   import { cancelJob, retryJob, removeJob } from "../stores/queue.svelte";
+  import { openFile, revealFile } from "../tauri";
 
   let { job }: { job: DownloadJob } = $props();
 
@@ -108,6 +109,23 @@
       </button>
     {/if}
   </div>
+
+  {#if job.status === "done" && job.filePath}
+    <div class="done-actions">
+      <button class="done-btn play" onclick={() => openFile(job.filePath!)} title="Play">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Play
+      </button>
+      <button class="done-btn find" onclick={() => revealFile(job.filePath!)} title="Show in folder">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        Find
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -128,7 +146,7 @@
   }
 
   .item.done {
-    opacity: 0.7;
+    opacity: 0.85;
   }
 
   .item.error {
@@ -239,5 +257,43 @@
     justify-content: center;
     padding: 0;
     border-radius: 6px;
+  }
+
+  .done-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .done-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: transparent;
+    transition: all 0.15s;
+  }
+
+  .done-btn.play {
+    color: var(--orange);
+    border-color: rgba(255, 107, 0, 0.3);
+  }
+
+  .done-btn.play:hover {
+    background: var(--orange-subtle);
+    border-color: var(--orange);
+  }
+
+  .done-btn.find {
+    color: var(--text-dim);
+  }
+
+  .done-btn.find:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+    border-color: var(--border-focus);
   }
 </style>
