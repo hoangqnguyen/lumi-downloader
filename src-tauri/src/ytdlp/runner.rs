@@ -280,7 +280,7 @@ fn find_node_from_version_managers() -> Option<String> {
     // Fallback: find newest nvm node by listing version dirs
     let nvm_versions = std::path::Path::new(&home).join(".nvm/versions/node");
     if nvm_versions.is_dir() {
-        if let Ok(mut entries) = std::fs::read_dir(&nvm_versions) {
+        if let Ok(entries) = std::fs::read_dir(&nvm_versions) {
             let mut versions: Vec<std::path::PathBuf> = entries
                 .filter_map(|e| e.ok().map(|e| e.path()))
                 .filter(|p| p.join("bin/node").is_file())

@@ -27,7 +27,7 @@ let maxConcurrent = $state<number>(saved.maxConcurrent ?? 3);
 let cookiesBrowser = $state<CookiesBrowser>(saved.cookiesBrowser ?? "");
 let theme = $state<Theme>(saved.theme ?? "dark");
 
-if (!outputDir) {
+if (!saved.outputDir) {
   getDefaultDownloadDir().then((dir) => {
     outputDir = dir;
     persist();
