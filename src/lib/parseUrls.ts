@@ -46,10 +46,8 @@ export function parseInput(raw: string): ParsedUrl[] {
       continue;
     }
 
-    // Unknown URL — pass it through and let yt-dlp handle it
-    if (url.startsWith("http")) {
-      result.push({ type: "video", url });
-    }
+    // Only accept YouTube URLs
+    // Non-YouTube URLs are silently ignored
   }
 
   return result;

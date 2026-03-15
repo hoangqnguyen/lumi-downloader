@@ -12,7 +12,6 @@ pub async fn start_download(
     output_dir: String,
     audio_only: bool,
     resolution: String,
-    cookies_browser: String,
 ) -> Result<(), String> {
     let semaphore = Arc::clone(&state.semaphore);
     let abort_handles = state.abort_handles.clone();
@@ -25,7 +24,6 @@ pub async fn start_download(
         output_dir,
         audio_only,
         resolution,
-        cookies_browser,
     };
 
     let app_clone = app.clone();

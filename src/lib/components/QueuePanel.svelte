@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getJobs, clearCompleted, clearAll, getActiveCount, getPendingCount, getDoneCount, getErrorCount } from "../stores/queue.svelte";
+  import { getJobs, clearCompleted, clearAll, retryAllFailed, getActiveCount, getPendingCount, getDoneCount, getErrorCount } from "../stores/queue.svelte";
   import QueueItem from "./QueueItem.svelte";
 
   let jobs = $derived(getJobs());
@@ -38,6 +38,9 @@
         {/if}
       </div>
       <div class="queue-actions">
+        {#if errorCount > 0}
+          <button class="btn-ghost small retry-all" onclick={retryAllFailed}>Retry failed</button>
+        {/if}
         {#if doneCount > 0}
           <button class="btn-ghost small" onclick={clearCompleted}>Clear done</button>
         {/if}
@@ -121,6 +124,10 @@
   .small {
     font-size: 11px;
     padding: 4px 8px;
+  }
+
+  .retry-all {
+    color: var(--orange);
   }
 
   .queue-list {

@@ -75,7 +75,12 @@
   {/if}
 
   {#if job.status === "error" && job.error}
-    <p class="error-msg truncate">{job.error}</p>
+    <p class="error-msg truncate">
+      {job.error}
+      {#if job.retryCount > 0}
+        <span class="retry-count">(attempt {job.retryCount + 1})</span>
+      {/if}
+    </p>
   {/if}
 
   <div class="actions">
@@ -233,6 +238,11 @@
     font-size: 11px;
     color: var(--red);
     font-family: var(--font-mono);
+  }
+
+  .retry-count {
+    color: var(--text-muted);
+    font-weight: 500;
   }
 
   .actions {

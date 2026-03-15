@@ -21,9 +21,8 @@ export interface DownloadJob {
   error?: string;
   filePath?: string;
   addedAt: number;
+  retryCount: number;
 }
-
-export type CookiesBrowser = "" | "chrome" | "firefox" | "safari" | "edge" | "brave" | "opera";
 
 export type Theme = "dark" | "light";
 
@@ -32,8 +31,10 @@ export interface AppSettings {
   audioOnly: boolean;
   resolution: Resolution;
   maxConcurrent: number;
-  cookiesBrowser: CookiesBrowser;
   theme: Theme;
+  autoRetry: boolean;
+  autoRetryMaxAttempts: number;
+  autoRetryDelaySec: number;
 }
 
 export interface ProgressEventData {

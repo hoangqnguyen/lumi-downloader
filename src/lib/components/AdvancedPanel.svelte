@@ -3,36 +3,33 @@
     getAudioOnly,
     getResolution,
     getMaxConcurrent,
-    getCookiesBrowser,
+    getAutoRetry,
+    getAutoRetryMaxAttempts,
+    getAutoRetryDelaySec,
     setAudioOnly,
     setResolution,
     setMaxConcurrent,
-    setCookiesBrowser,
+    setAutoRetry,
+    setAutoRetryMaxAttempts,
+    setAutoRetryDelaySec,
   } from "../stores/settings.svelte";
 
   let audioOnly = $derived(getAudioOnly());
   let resolution = $derived(getResolution());
   let maxConcurrent = $derived(getMaxConcurrent());
-  let cookiesBrowser = $derived(getCookiesBrowser());
-  import type { Resolution, CookiesBrowser } from "../types";
+  let autoRetry = $derived(getAutoRetry());
+  let autoRetryMaxAttempts = $derived(getAutoRetryMaxAttempts());
+  let autoRetryDelaySec = $derived(getAutoRetryDelaySec());
+  import type { Resolution } from "../types";
 
   const resolutions: { value: Resolution; label: string }[] = [
-    { value: "best", label: "Best quality" },
+    { value: "best", label: "Best" },
     { value: "1080", label: "1080p" },
     { value: "720", label: "720p" },
     { value: "480", label: "480p" },
     { value: "360", label: "360p" },
   ];
 
-  const browsers: { value: CookiesBrowser; label: string }[] = [
-    { value: "", label: "None (disabled)" },
-    { value: "chrome", label: "Chrome" },
-    { value: "firefox", label: "Firefox" },
-    { value: "safari", label: "Safari" },
-    { value: "edge", label: "Edge" },
-    { value: "brave", label: "Brave" },
-    { value: "opera", label: "Opera" },
-  ];
 </script>
 
 <details class="advanced-panel">
@@ -67,19 +64,24 @@
     </div>
 
     <div class="row" class:disabled={audioOnly}>
-      <label class="field" for="resolution">
+      <div class="field">
         <span class="field-label">Resolution</span>
-        <select
-          id="resolution"
-          value={resolution}
-          onchange={(e) => setResolution((e.target as HTMLSelectElement).value as Resolution)}
-          disabled={audioOnly}
-        >
+        <div class="radio-group">
           {#each resolutions as r}
-            <option value={r.value}>{r.label}</option>
+            <label class="radio-option" class:selected={resolution === r.value}>
+              <input
+                type="radio"
+                name="resolution"
+                value={r.value}
+                checked={resolution === r.value}
+                onchange={() => setResolution(r.value)}
+                disabled={audioOnly}
+              />
+              <span class="radio-label">{r.label}</span>
+            </label>
           {/each}
-        </select>
-      </label>
+        </div>
+      </div>
     </div>
 
     <div class="row">
@@ -98,21 +100,61 @@
       </div>
     </div>
 
+    <div class="divider"></div>
+
     <div class="row">
-      <label class="field" for="cookies-browser">
-        <span class="field-label">Browser cookies</span>
-        <span class="field-hint">Use cookies from a browser to bypass bot detection</span>
-        <select
-          id="cookies-browser"
-          value={cookiesBrowser}
-          onchange={(e) => setCookiesBrowser((e.target as HTMLSelectElement).value as CookiesBrowser)}
-        >
-          {#each browsers as b}
-            <option value={b.value}>{b.label}</option>
-          {/each}
-        </select>
+      <label class="toggle-label" for="auto-retry">
+        <span class="label-text">
+          <span class="label-title">Auto-retry failed</span>
+          <span class="label-sub">Automatically retry failed downloads</span>
+        </span>
+        <div class="toggle" class:on={autoRetry}>
+          <input
+            id="auto-retry"
+            type="checkbox"
+            checked={autoRetry}
+            onchange={(e) => setAutoRetry((e.target as HTMLInputElement).checked)}
+          />
+          <div class="track"><div class="thumb"></div></div>
+        </div>
       </label>
     </div>
+
+    {#if autoRetry}
+      <div class="row sub-settings">
+        <div class="field">
+          <span class="field-label">Max retries</span>
+          <div class="slider-row">
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={autoRetryMaxAttempts}
+              onchange={(e) => setAutoRetryMaxAttempts(Number((e.target as HTMLInputElement).value))}
+            />
+            <span class="slider-val">{autoRetryMaxAttempts}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row sub-settings">
+        <div class="field">
+          <span class="field-label">Retry delay</span>
+          <div class="slider-row">
+            <input
+              type="range"
+              min="5"
+              max="60"
+              step="5"
+              value={autoRetryDelaySec}
+              onchange={(e) => setAutoRetryDelaySec(Number((e.target as HTMLInputElement).value))}
+            />
+            <span class="slider-val">{autoRetryDelaySec}s</span>
+          </div>
+        </div>
+      </div>
+    {/if}
+
   </div>
 </details>
 
@@ -171,6 +213,16 @@
   .row.disabled {
     opacity: 0.4;
     pointer-events: none;
+  }
+
+  .sub-settings {
+    padding-left: 8px;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 2px 0;
   }
 
   .toggle-label {
@@ -246,23 +298,54 @@
     color: var(--text-dim);
   }
 
-  .field-hint {
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  select {
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-input);
+  .radio-group {
+    display: flex;
+    gap: 0;
     border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 13px;
-    width: 100%;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
   }
 
-  select:focus {
-    border-color: var(--orange);
+  .radio-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .radio-option + .radio-option {
+    border-left: 1px solid var(--border);
+  }
+
+  .radio-option input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .radio-label {
+    display: block;
+    width: 100%;
+    text-align: center;
+    padding: 6px 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    transition: all 0.15s;
+  }
+
+  .radio-option.selected .radio-label {
+    background: var(--orange);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .radio-option:not(.selected):hover .radio-label {
+    background: var(--bg-hover);
+    color: var(--text);
   }
 
   .slider-row {
@@ -293,7 +376,7 @@
   }
 
   .slider-val {
-    width: 20px;
+    min-width: 28px;
     text-align: center;
     font-size: 13px;
     font-weight: 600;

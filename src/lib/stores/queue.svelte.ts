@@ -37,6 +37,7 @@ export function addJobs(entries: Array<{ url: string; title: string }>) {
     eta: "",
     size: "",
     addedAt: now + i,
+    retryCount: 0,
   }));
   jobs = [...jobs, ...newJobs];
   scheduleNext();
@@ -74,13 +75,30 @@ export async function cancelJob(id: string) {
 }
 
 export async function retryJob(id: string) {
+  const job = jobs.find((j) => j.id === id);
   updateJob(id, {
     status: "pending",
     percent: 0,
     speed: "",
     eta: "",
     error: undefined,
+    retryCount: (job?.retryCount ?? 0) + 1,
   });
+  scheduleNext();
+}
+
+export function retryAllFailed() {
+  const failed = jobs.filter((j) => j.status === "error");
+  for (const job of failed) {
+    updateJob(job.id, {
+      status: "pending",
+      percent: 0,
+      speed: "",
+      eta: "",
+      error: undefined,
+      retryCount: job.retryCount + 1,
+    });
+  }
   scheduleNext();
 }
 
@@ -106,7 +124,6 @@ export function scheduleNext() {
       outputDir: s.outputDir,
       audioOnly: s.audioOnly,
       resolution: s.resolution,
-      cookiesBrowser: s.cookiesBrowser,
     }).catch((err) => {
       updateJob(job.id, { status: "error", error: String(err) });
       scheduleNext();
@@ -158,12 +175,26 @@ export function handleJobEvent(event: JobEvent) {
       if (d.success) {
         updateJob(job_id, { status: "done", percent: 100, speed: "", eta: "" });
       } else {
-        updateJob(job_id, {
-          status: "error",
-          error: d.error || "Unknown error",
-          speed: "",
-          eta: "",
-        });
+        const settings = getSettings();
+        const job = jobs.find((j) => j.id === job_id);
+        if (settings.autoRetry && job && job.retryCount < settings.autoRetryMaxAttempts) {
+          updateJob(job_id, {
+            status: "pending",
+            error: undefined,
+            percent: 0,
+            speed: "",
+            eta: "",
+            retryCount: job.retryCount + 1,
+          });
+          setTimeout(() => scheduleNext(), settings.autoRetryDelaySec * 1000);
+        } else {
+          updateJob(job_id, {
+            status: "error",
+            error: d.error || "Unknown error",
+            speed: "",
+            eta: "",
+          });
+        }
       }
       scheduleNext();
       break;

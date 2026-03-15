@@ -14,7 +14,6 @@ pub struct DownloadRequest {
     pub output_dir: String,
     pub audio_only: bool,
     pub resolution: String,
-    pub cookies_browser: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -333,10 +332,6 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
 
     if let Some(node) = find_node() {
         args.extend(["--js-runtimes".into(), format!("node:{node}")]);
-    }
-
-    if !req.cookies_browser.is_empty() {
-        args.extend(["--cookies-from-browser".into(), req.cookies_browser.clone()]);
     }
 
     args.push(req.url.clone());

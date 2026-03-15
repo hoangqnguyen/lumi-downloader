@@ -1,4 +1,4 @@
-import type { AppSettings, Resolution, CookiesBrowser, Theme } from "../types";
+import type { AppSettings, Resolution, Theme } from "../types";
 import { getDefaultDownloadDir } from "../tauri";
 
 const STORAGE_KEY = "ytdl-settings";
@@ -24,8 +24,10 @@ let outputDir = $state<string>(saved.outputDir ?? "");
 let audioOnly = $state<boolean>(saved.audioOnly ?? false);
 let resolution = $state<Resolution>(saved.resolution ?? "best");
 let maxConcurrent = $state<number>(saved.maxConcurrent ?? 3);
-let cookiesBrowser = $state<CookiesBrowser>(saved.cookiesBrowser ?? "");
 let theme = $state<Theme>(saved.theme ?? "dark");
+let autoRetry = $state<boolean>(saved.autoRetry ?? false);
+let autoRetryMaxAttempts = $state<number>(saved.autoRetryMaxAttempts ?? 3);
+let autoRetryDelaySec = $state<number>(saved.autoRetryDelaySec ?? 10);
 
 if (!saved.outputDir) {
   getDefaultDownloadDir().then((dir) => {
@@ -35,7 +37,7 @@ if (!saved.outputDir) {
 }
 
 function persist() {
-  saveToStorage({ outputDir, audioOnly, resolution, maxConcurrent, cookiesBrowser, theme });
+  saveToStorage({ outputDir, audioOnly, resolution, maxConcurrent, theme, autoRetry, autoRetryMaxAttempts, autoRetryDelaySec });
 }
 
 export function getOutputDir(): string {
@@ -52,10 +54,6 @@ export function getResolution(): Resolution {
 
 export function getMaxConcurrent(): number {
   return maxConcurrent;
-}
-
-export function getCookiesBrowser(): CookiesBrowser {
-  return cookiesBrowser;
 }
 
 export function setOutputDir(v: string) {
@@ -78,8 +76,30 @@ export function setMaxConcurrent(v: number) {
   persist();
 }
 
-export function setCookiesBrowser(v: CookiesBrowser) {
-  cookiesBrowser = v;
+export function getAutoRetry(): boolean {
+  return autoRetry;
+}
+
+export function getAutoRetryMaxAttempts(): number {
+  return autoRetryMaxAttempts;
+}
+
+export function getAutoRetryDelaySec(): number {
+  return autoRetryDelaySec;
+}
+
+export function setAutoRetry(v: boolean) {
+  autoRetry = v;
+  persist();
+}
+
+export function setAutoRetryMaxAttempts(v: number) {
+  autoRetryMaxAttempts = v;
+  persist();
+}
+
+export function setAutoRetryDelaySec(v: number) {
+  autoRetryDelaySec = v;
   persist();
 }
 
@@ -98,5 +118,5 @@ export function toggleTheme() {
 }
 
 export function getSettings(): AppSettings {
-  return { outputDir, audioOnly, resolution, maxConcurrent, cookiesBrowser, theme };
+  return { outputDir, audioOnly, resolution, maxConcurrent, theme, autoRetry, autoRetryMaxAttempts, autoRetryDelaySec };
 }

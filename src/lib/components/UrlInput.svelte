@@ -2,13 +2,14 @@
   import { parseInput } from "../parseUrls";
   import { expandPlaylist } from "../tauri";
   import { addJobs } from "../stores/queue.svelte";
-  import { getCookiesBrowser } from "../stores/settings.svelte";
   import type { ParsedUrl } from "../parseUrls";
 
   let value = $state("");
   let loading = $state(false);
   let error = $state("");
   let textarea: HTMLTextAreaElement | null = $state(null);
+  const isMac = navigator.userAgent.includes("Mac");
+  const submitHint = isMac ? "⌘+Return to submit" : "Ctrl+Enter to submit";
 
   export function focus() {
     textarea?.focus();
@@ -24,7 +25,7 @@
     try {
       const parsed = parseInput(trimmed);
       if (parsed.length === 0) {
-        error = "No valid YT URLs found.";
+        error = "No valid YouTube URLs found. Paste a video or playlist link.";
         return;
       }
 
@@ -35,7 +36,7 @@
           jobs.push({ url: item.url, title: extractTitle(item.url) });
         } else if (item.type === "playlist") {
           try {
-            const entries = await expandPlaylist(item.url, getCookiesBrowser());
+            const entries = await expandPlaylist(item.url);
             for (const e of entries) {
               jobs.push({ url: e.url, title: e.title });
             }
@@ -80,7 +81,7 @@
 <div class="url-input">
   <div class="input-label">
     <span>Add URLs</span>
-    <span class="hint">Paste links, CSV, or newline-separated · Ctrl+Enter to submit</span>
+    <span class="hint">Paste links, CSV, or newline-separated · {submitHint}</span>
   </div>
   <div class="input-wrap" class:loading>
     <textarea
@@ -166,8 +167,8 @@ placeholder="https://youtube.com/watch?v=... or playlist URL"
   }
 
   textarea:focus {
-    border-color: var(--orange);
-    box-shadow: 0 0 0 3px var(--orange-glow);
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
   }
 
   .submit-btn {
