@@ -23,11 +23,14 @@ export interface DownloadJob {
   addedAt: number;
 }
 
+export type CookiesBrowser = "" | "chrome" | "firefox" | "safari" | "edge" | "brave" | "opera";
+
 export interface AppSettings {
   outputDir: string;
   audioOnly: boolean;
   resolution: Resolution;
   maxConcurrent: number;
+  cookiesBrowser: CookiesBrowser;
 }
 
 export interface ProgressEventData {

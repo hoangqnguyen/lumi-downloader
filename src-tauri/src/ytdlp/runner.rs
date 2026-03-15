@@ -12,6 +12,7 @@ pub struct DownloadRequest {
     pub output_dir: String,
     pub audio_only: bool,
     pub resolution: String,
+    pub cookies_browser: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -282,6 +283,11 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
     // Pass explicit ffmpeg path so it's found when running inside the app bundle
     if let Some(ffmpeg) = find_ffmpeg() {
         args.extend(["--ffmpeg-location".into(), ffmpeg]);
+    }
+
+    // Use browser cookies to bypass bot detection / age gates
+    if !req.cookies_browser.is_empty() {
+        args.extend(["--cookies-from-browser".into(), req.cookies_browser.clone()]);
     }
 
     args.push(req.url.clone());

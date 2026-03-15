@@ -3,15 +3,18 @@
     getAudioOnly,
     getResolution,
     getMaxConcurrent,
+    getCookiesBrowser,
     setAudioOnly,
     setResolution,
     setMaxConcurrent,
+    setCookiesBrowser,
   } from "../stores/settings.svelte";
 
   let audioOnly = $derived(getAudioOnly());
   let resolution = $derived(getResolution());
   let maxConcurrent = $derived(getMaxConcurrent());
-  import type { Resolution } from "../types";
+  let cookiesBrowser = $derived(getCookiesBrowser());
+  import type { Resolution, CookiesBrowser } from "../types";
 
   const resolutions: { value: Resolution; label: string }[] = [
     { value: "best", label: "Best quality" },
@@ -19,6 +22,16 @@
     { value: "720", label: "720p" },
     { value: "480", label: "480p" },
     { value: "360", label: "360p" },
+  ];
+
+  const browsers: { value: CookiesBrowser; label: string }[] = [
+    { value: "", label: "None (disabled)" },
+    { value: "chrome", label: "Chrome" },
+    { value: "firefox", label: "Firefox" },
+    { value: "safari", label: "Safari" },
+    { value: "edge", label: "Edge" },
+    { value: "brave", label: "Brave" },
+    { value: "opera", label: "Opera" },
   ];
 </script>
 
@@ -83,6 +96,22 @@
           <span class="slider-val">{maxConcurrent}</span>
         </div>
       </div>
+    </div>
+
+    <div class="row">
+      <label class="field" for="cookies-browser">
+        <span class="field-label">Browser cookies</span>
+        <span class="field-hint">Use cookies from a browser to bypass bot detection</span>
+        <select
+          id="cookies-browser"
+          value={cookiesBrowser}
+          onchange={(e) => setCookiesBrowser((e.target as HTMLSelectElement).value as CookiesBrowser)}
+        >
+          {#each browsers as b}
+            <option value={b.value}>{b.label}</option>
+          {/each}
+        </select>
+      </label>
     </div>
   </div>
 </details>
@@ -215,6 +244,11 @@
     font-size: 12px;
     font-weight: 500;
     color: var(--text-dim);
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-muted);
   }
 
   select {

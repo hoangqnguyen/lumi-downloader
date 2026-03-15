@@ -15,17 +15,24 @@ pub struct PlaylistEntry {
 pub async fn expand_playlist(
     app: AppHandle,
     url: String,
+    cookies_browser: String,
 ) -> Result<Vec<PlaylistEntry>, String> {
+    let mut args = vec![
+        "--flat-playlist".to_string(),
+        "--dump-json".to_string(),
+        "--no-warnings".to_string(),
+    ];
+    if !cookies_browser.is_empty() {
+        args.push("--cookies-from-browser".to_string());
+        args.push(cookies_browser);
+    }
+    args.push(url);
+
     let sidecar = app
         .shell()
         .sidecar("yt-dlp")
         .map_err(|e| format!("Failed to find yt-dlp: {e}"))?
-        .args([
-            "--flat-playlist",
-            "--dump-json",
-            "--no-warnings",
-            &url,
-        ]);
+        .args(&args);
 
     let output = sidecar
         .output()

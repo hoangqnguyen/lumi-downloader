@@ -2,6 +2,7 @@
   import { parseInput } from "../parseUrls";
   import { expandPlaylist } from "../tauri";
   import { addJobs } from "../stores/queue.svelte";
+  import { getCookiesBrowser } from "../stores/settings.svelte";
   import type { ParsedUrl } from "../parseUrls";
 
   let value = $state("");
@@ -34,7 +35,7 @@
           jobs.push({ url: item.url, title: extractTitle(item.url) });
         } else if (item.type === "playlist") {
           try {
-            const entries = await expandPlaylist(item.url);
+            const entries = await expandPlaylist(item.url, getCookiesBrowser());
             for (const e of entries) {
               jobs.push({ url: e.url, title: e.title });
             }

@@ -1,4 +1,4 @@
-import type { AppSettings, Resolution } from "../types";
+import type { AppSettings, Resolution, CookiesBrowser } from "../types";
 import { getDefaultDownloadDir } from "../tauri";
 
 const STORAGE_KEY = "ytdl-settings";
@@ -24,6 +24,7 @@ let outputDir = $state<string>(saved.outputDir ?? "");
 let audioOnly = $state<boolean>(saved.audioOnly ?? false);
 let resolution = $state<Resolution>(saved.resolution ?? "best");
 let maxConcurrent = $state<number>(saved.maxConcurrent ?? 3);
+let cookiesBrowser = $state<CookiesBrowser>(saved.cookiesBrowser ?? "");
 
 if (!outputDir) {
   getDefaultDownloadDir().then((dir) => {
@@ -33,7 +34,7 @@ if (!outputDir) {
 }
 
 function persist() {
-  saveToStorage({ outputDir, audioOnly, resolution, maxConcurrent });
+  saveToStorage({ outputDir, audioOnly, resolution, maxConcurrent, cookiesBrowser });
 }
 
 export function getOutputDir(): string {
@@ -50,6 +51,10 @@ export function getResolution(): Resolution {
 
 export function getMaxConcurrent(): number {
   return maxConcurrent;
+}
+
+export function getCookiesBrowser(): CookiesBrowser {
+  return cookiesBrowser;
 }
 
 export function setOutputDir(v: string) {
@@ -72,6 +77,11 @@ export function setMaxConcurrent(v: number) {
   persist();
 }
 
+export function setCookiesBrowser(v: CookiesBrowser) {
+  cookiesBrowser = v;
+  persist();
+}
+
 export function getSettings(): AppSettings {
-  return { outputDir, audioOnly, resolution, maxConcurrent };
+  return { outputDir, audioOnly, resolution, maxConcurrent, cookiesBrowser };
 }

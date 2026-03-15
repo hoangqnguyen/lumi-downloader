@@ -21,8 +21,8 @@ export async function openFolder(path: string): Promise<void> {
   return invoke<void>("open_folder", { path });
 }
 
-export async function expandPlaylist(url: string): Promise<PlaylistEntry[]> {
-  return invoke<PlaylistEntry[]>("expand_playlist", { url });
+export async function expandPlaylist(url: string, cookiesBrowser: string = ""): Promise<PlaylistEntry[]> {
+  return invoke<PlaylistEntry[]>("expand_playlist", { url, cookiesBrowser });
 }
 
 export async function startDownload(params: {
@@ -31,6 +31,7 @@ export async function startDownload(params: {
   outputDir: string;
   audioOnly: boolean;
   resolution: string;
+  cookiesBrowser: string;
 }): Promise<void> {
   return invoke<void>("start_download", {
     jobId: params.jobId,
@@ -38,6 +39,7 @@ export async function startDownload(params: {
     outputDir: params.outputDir,
     audioOnly: params.audioOnly,
     resolution: params.resolution,
+    cookiesBrowser: params.cookiesBrowser,
   });
 }
 
