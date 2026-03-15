@@ -60,3 +60,17 @@ export async function listenJobEvents(
 ): Promise<() => void> {
   return listen<JobEvent>("job-event", (e) => handler(e.payload));
 }
+
+export async function checkBinaries(): Promise<boolean> {
+  return invoke<boolean>("check_binaries");
+}
+
+export async function setupBinaries(): Promise<void> {
+  return invoke<void>("setup_binaries");
+}
+
+export async function listenSetupProgress(
+  handler: (message: string) => void
+): Promise<() => void> {
+  return listen<{ message: string }>("setup-progress", (e) => handler(e.payload.message));
+}

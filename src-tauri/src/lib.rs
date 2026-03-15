@@ -1,18 +1,19 @@
+pub mod binaries;
 mod commands;
 mod ytdlp;
 
-use commands::{download, playlist, settings};
+use commands::{download, playlist, settings, setup};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use dashmap::DashSet;
 use dashmap::DashMap;
 use tokio::task::AbortHandle;
-use tauri_plugin_shell::process::CommandChild;
+use tokio::process::Child;
 
 pub struct AppState {
     pub semaphore: Arc<Semaphore>,
     pub abort_handles: DashMap<String, AbortHandle>,
-    pub children: Arc<DashMap<String, CommandChild>>,
+    pub children: Arc<DashMap<String, Child>>,
     pub cancelled: Arc<DashSet<String>>,
 }
 
@@ -46,6 +47,8 @@ pub fn run() {
             settings::open_folder,
             settings::open_file,
             settings::reveal_file,
+            setup::check_binaries,
+            setup::setup_binaries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

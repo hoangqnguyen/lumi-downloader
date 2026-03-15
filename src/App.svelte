@@ -2,13 +2,17 @@
   import { onMount } from "svelte";
   import { initQueue } from "./lib/stores/queue.svelte";
   import { getTheme, toggleTheme } from "./lib/stores/settings.svelte";
+  import { checkBinaries } from "./lib/tauri";
   import UrlInput from "./lib/components/UrlInput.svelte";
   import QueuePanel from "./lib/components/QueuePanel.svelte";
   import AdvancedPanel from "./lib/components/AdvancedPanel.svelte";
   import FolderPicker from "./lib/components/FolderPicker.svelte";
+  import SetupScreen from "./lib/components/SetupScreen.svelte";
   import logo from "./assets/logo.png";
 
   let theme = $derived(getTheme());
+  let ready = $state(false);
+  let checking = $state(true);
 
   $effect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -16,10 +20,25 @@
 
   onMount(async () => {
     document.documentElement.setAttribute("data-theme", getTheme());
-    await initQueue();
+    const hasBinaries = await checkBinaries();
+    if (hasBinaries) {
+      await initQueue();
+      ready = true;
+    }
+    checking = false;
   });
+
+  function onSetupComplete() {
+    ready = true;
+    initQueue();
+  }
 </script>
 
+{#if checking}
+  <div class="loading"></div>
+{:else if !ready}
+  <SetupScreen onComplete={onSetupComplete} />
+{:else}
 <div class="app">
   <header class="titlebar">
     <div class="logo">
@@ -52,6 +71,7 @@
     <QueuePanel />
   </main>
 </div>
+{/if}
 
 <style>
   .app {
@@ -121,5 +141,10 @@
     background: var(--border);
     flex-shrink: 0;
     margin: 0 -4px;
+  }
+
+  .loading {
+    height: 100vh;
+    background: var(--bg);
   }
 </style>

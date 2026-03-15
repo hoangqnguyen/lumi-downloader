@@ -1,6 +1,6 @@
+use crate::binaries;
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
-use tauri_plugin_shell::ShellExt;
+use tokio::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlaylistEntry {
@@ -13,10 +13,11 @@ pub struct PlaylistEntry {
 
 #[tauri::command]
 pub async fn expand_playlist(
-    app: AppHandle,
     url: String,
     cookies_browser: String,
 ) -> Result<Vec<PlaylistEntry>, String> {
+    let ytdlp_path = binaries::bin_path("yt-dlp");
+
     let mut args = vec![
         "--flat-playlist".to_string(),
         "--dump-json".to_string(),
@@ -28,13 +29,8 @@ pub async fn expand_playlist(
     }
     args.push(url);
 
-    let sidecar = app
-        .shell()
-        .sidecar("yt-dlp")
-        .map_err(|e| format!("Failed to find yt-dlp: {e}"))?
-        .args(&args);
-
-    let output = sidecar
+    let output = Command::new(&ytdlp_path)
+        .args(&args)
         .output()
         .await
         .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;

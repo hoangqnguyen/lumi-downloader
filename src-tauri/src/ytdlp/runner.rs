@@ -1,9 +1,11 @@
+use crate::binaries;
 use crate::ytdlp::progress::{parse_line, ParsedLine};
 use dashmap::{DashMap, DashSet};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::{process::CommandChild, ShellExt};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::{Child, Command};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DownloadRequest {
@@ -47,185 +49,156 @@ pub enum JobEventPayload {
 pub async fn run_download(
     app: AppHandle,
     req: DownloadRequest,
-    children: Arc<DashMap<String, CommandChild>>,
+    children: Arc<DashMap<String, Child>>,
     cancelled: Arc<DashSet<String>>,
 ) -> Result<(), String> {
     let args = build_args(&req);
+    let ytdlp_path = binaries::bin_path("yt-dlp");
 
-    let sidecar = app
-        .shell()
-        .sidecar("yt-dlp")
-        .map_err(|e| format!("Failed to find yt-dlp sidecar: {e}"))?
-        .args(&args);
-
-    let (mut rx, child) = sidecar
+    let mut child = Command::new(&ytdlp_path)
+        .args(&args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("Failed to spawn yt-dlp: {e}"))?;
+
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
 
     children.insert(req.job_id.clone(), child);
 
     let mut error_lines: Vec<String> = Vec::new();
 
-    while let Some(event) = rx.recv().await {
-        use tauri_plugin_shell::process::CommandEvent;
-        match event {
-            CommandEvent::Stdout(bytes) => {
-                let text = String::from_utf8_lossy(&bytes).into_owned();
-                for line in text.lines() {
-                    let line = line.trim();
-                    match parse_line(line) {
-                        ParsedLine::Progress(p) => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::Progress {
-                                        percent: p.percent,
-                                        size: p.size,
-                                        speed: p.speed,
-                                        eta: p.eta,
-                                    },
-                                },
-                            );
-                        }
-                        ParsedLine::Merging => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::Merging,
-                                },
-                            );
-                        }
-                        ParsedLine::Title(title) => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::Title { title },
-                                },
-                            );
-                        }
-                        ParsedLine::FinalPath(path) => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::FilePath { path },
-                                },
-                            );
-                        }
-                        ParsedLine::AlreadyDownloaded => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::Done {
-                                        success: true,
-                                        error: None,
-                                    },
-                                },
-                            );
-                            return Ok(());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            CommandEvent::Stderr(bytes) => {
-                let text = String::from_utf8_lossy(&bytes).into_owned();
-                for line in text.lines() {
-                    let line = line.trim();
-                    // yt-dlp routes progress to stderr when not in a TTY
-                    match parse_line(line) {
-                        ParsedLine::Progress(p) => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::Progress {
-                                        percent: p.percent,
-                                        size: p.size,
-                                        speed: p.speed,
-                                        eta: p.eta,
-                                    },
-                                },
-                            );
-                        }
-                        ParsedLine::Merging => {
-                            let _ = app.emit(
-                                "job-event",
-                                JobEvent {
-                                    job_id: req.job_id.clone(),
-                                    payload: JobEventPayload::Merging,
-                                },
-                            );
-                        }
-                        _ => {
-                            if !line.is_empty() {
-                                error_lines.push(line.to_string());
-                            }
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+
+    let mut stdout_lines = stdout_reader.lines();
+    let mut stderr_lines = stderr_reader.lines();
+
+    loop {
+        tokio::select! {
+            line = stdout_lines.next_line() => {
+                match line {
+                    Ok(Some(text)) => {
+                        for line in text.lines() {
+                            let line = line.trim();
+                            process_line(&app, &req.job_id, line, &mut error_lines, false);
                         }
                     }
+                    Ok(None) => break,
+                    Err(_) => break,
                 }
             }
-            CommandEvent::Terminated(status) => {
-                children.remove(&req.job_id);
-                // Don't emit Done for cancelled jobs
-                if cancelled.remove(&req.job_id).is_some() {
-                    break;
+            line = stderr_lines.next_line() => {
+                match line {
+                    Ok(Some(text)) => {
+                        for line in text.lines() {
+                            let line = line.trim();
+                            process_line(&app, &req.job_id, line, &mut error_lines, true);
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(_) => {}
                 }
-                let success = status.code == Some(0);
-                let error = if success {
-                    None
-                } else {
-                    Some(error_lines.join("\n"))
-                };
-                let _ = app.emit(
-                    "job-event",
-                    JobEvent {
-                        job_id: req.job_id.clone(),
-                        payload: JobEventPayload::Done { success, error },
-                    },
-                );
-                break;
             }
-            _ => {}
         }
     }
+
+    // Wait for the process to finish
+    let status = if let Some((_, mut child)) = children.remove(&req.job_id) {
+        child.wait().await.ok()
+    } else {
+        None
+    };
+
+    // Don't emit Done for cancelled jobs
+    if cancelled.remove(&req.job_id).is_some() {
+        return Ok(());
+    }
+
+    let success = status.map(|s| s.success()).unwrap_or(false);
+    let error = if success {
+        None
+    } else {
+        Some(error_lines.join("\n"))
+    };
+    let _ = app.emit(
+        "job-event",
+        JobEvent {
+            job_id: req.job_id.clone(),
+            payload: JobEventPayload::Done { success, error },
+        },
+    );
 
     Ok(())
 }
 
-/// Returns the directory containing ffmpeg (and ffprobe) so yt-dlp can find both.
-fn find_ffmpeg_dir() -> Option<String> {
-    // Prefer the bundled sidecar directory (placed alongside the executable by Tauri)
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            for name in &["ffmpeg.exe", "ffmpeg"] {
-                if dir.join(name).exists() {
-                    return Some(dir.to_string_lossy().into_owned());
-                }
+fn process_line(app: &AppHandle, job_id: &str, line: &str, error_lines: &mut Vec<String>, is_stderr: bool) {
+    match parse_line(line) {
+        ParsedLine::Progress(p) => {
+            let _ = app.emit(
+                "job-event",
+                JobEvent {
+                    job_id: job_id.to_string(),
+                    payload: JobEventPayload::Progress {
+                        percent: p.percent,
+                        size: p.size,
+                        speed: p.speed,
+                        eta: p.eta,
+                    },
+                },
+            );
+        }
+        ParsedLine::Merging => {
+            let _ = app.emit(
+                "job-event",
+                JobEvent {
+                    job_id: job_id.to_string(),
+                    payload: JobEventPayload::Merging,
+                },
+            );
+        }
+        ParsedLine::Title(title) => {
+            let _ = app.emit(
+                "job-event",
+                JobEvent {
+                    job_id: job_id.to_string(),
+                    payload: JobEventPayload::Title { title },
+                },
+            );
+        }
+        ParsedLine::FinalPath(path) => {
+            let _ = app.emit(
+                "job-event",
+                JobEvent {
+                    job_id: job_id.to_string(),
+                    payload: JobEventPayload::FilePath { path },
+                },
+            );
+        }
+        ParsedLine::AlreadyDownloaded => {
+            let _ = app.emit(
+                "job-event",
+                JobEvent {
+                    job_id: job_id.to_string(),
+                    payload: JobEventPayload::Done {
+                        success: true,
+                        error: None,
+                    },
+                },
+            );
+        }
+        _ => {
+            if is_stderr && !line.is_empty() {
+                error_lines.push(line.to_string());
             }
         }
     }
-    // Search PATH so package-manager installs (apt, brew, winget) are found automatically
-    if let Some(ffmpeg_path) = which_bin("ffmpeg") {
-        if let Some(dir) = std::path::Path::new(&ffmpeg_path).parent() {
-            return Some(dir.to_string_lossy().into_owned());
-        }
-    }
-    // Fall back to well-known static locations
-    let candidates = [
-        "/opt/homebrew/bin/ffmpeg", // Homebrew Apple Silicon
-        "/usr/local/bin/ffmpeg",    // Homebrew Intel
-        "/usr/bin/ffmpeg",          // Linux / system
-    ];
-    candidates
-        .iter()
-        .find(|&&p| std::path::Path::new(p).exists())
-        .and_then(|&p| std::path::Path::new(p).parent())
-        .map(|dir| dir.to_string_lossy().into_owned())
+}
+
+/// Returns the directory containing ffmpeg (and ffprobe) so yt-dlp can find both.
+fn find_ffmpeg_dir() -> Option<String> {
+    binaries::ffmpeg_dir()
 }
 
 /// Returns a path to a Node.js binary if one exists on the system.
@@ -270,14 +243,12 @@ fn which_bin(name: &str) -> Option<String> {
 /// Searches nvm/fnm/volta version manager directories for a Node.js binary.
 fn find_node_from_version_managers() -> Option<String> {
     let home = std::env::var("HOME").ok()?;
-    // nvm: $NVM_BIN or glob $HOME/.nvm/versions/node/*/bin/node (pick newest by sorting)
     if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
         let candidate = std::path::Path::new(&nvm_bin).join("node");
         if candidate.is_file() {
             return Some(candidate.to_string_lossy().into_owned());
         }
     }
-    // Fallback: find newest nvm node by listing version dirs
     let nvm_versions = std::path::Path::new(&home).join(".nvm/versions/node");
     if nvm_versions.is_dir() {
         if let Ok(entries) = std::fs::read_dir(&nvm_versions) {
@@ -291,7 +262,6 @@ fn find_node_from_version_managers() -> Option<String> {
             }
         }
     }
-    // volta: $VOLTA_HOME/bin/node
     if let Ok(volta_home) = std::env::var("VOLTA_HOME") {
         let candidate = std::path::Path::new(&volta_home).join("bin/node");
         if candidate.is_file() {
@@ -311,12 +281,10 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
         "--progress".into(),
         "--progress-template".into(),
         "download:YTDLP_PROG:%(progress._percent_str)s:%(progress._total_bytes_str)s:%(progress._speed_str)s:%(progress._eta_str)s".into(),
-        // Strip characters illegal on Windows/macOS/Linux instead of replacing with fullwidth unicode
         "--replace-in-metadata".into(),
         "title".into(),
         "[/\\\\:*?\"<>|]".into(),
         "".into(),
-        // Trim leading/trailing dots and spaces (Windows rejects filenames ending with them)
         "--replace-in-metadata".into(),
         "title".into(),
         "^[\\s.]+|[\\s.]+$".into(),
@@ -344,35 +312,29 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
         args.extend(["--format".into(), format, "--merge-output-format".into(), "mp4".into()]);
     }
 
-    // Embed thumbnail and metadata
     args.extend([
         "--embed-thumbnail".into(),
         "--add-metadata".into(),
     ]);
 
-    // Print video title before download starts
     args.extend([
         "--print".into(),
         "before_dl:YTDL_TITLE:%(title)s".into(),
     ]);
 
-    // Print final file path after all post-processing (merge, conversion, etc.)
     args.extend([
         "--print".into(),
         "after_move:YTDL_FINAL:%(filepath)s".into(),
     ]);
 
-    // Pass ffmpeg directory so yt-dlp can find both ffmpeg and ffprobe
     if let Some(dir) = find_ffmpeg_dir() {
         args.extend(["--ffmpeg-location".into(), dir]);
     }
 
-    // Pass a JS runtime so yt-dlp can extract all YouTube formats
     if let Some(node) = find_node() {
         args.extend(["--js-runtimes".into(), format!("node:{node}")]);
     }
 
-    // Use browser cookies to bypass bot detection / age gates
     if !req.cookies_browser.is_empty() {
         args.extend(["--cookies-from-browser".into(), req.cookies_browser.clone()]);
     }

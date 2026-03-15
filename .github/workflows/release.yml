@@ -16,13 +16,10 @@ jobs:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
-            arch_label: aarch64
           - platform: macos-latest
             target: x86_64-apple-darwin
-            arch_label: x86_64
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            arch_label: x86_64
 
     runs-on: ${{ matrix.platform }}
 
@@ -55,59 +52,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Download external binaries
-        shell: bash
-        run: |
-          BINDIR="src-tauri/binaries"
-          mkdir -p "$BINDIR"
-
-          case "${{ matrix.target }}" in
-            aarch64-apple-darwin)
-              curl -L -o "$BINDIR/yt-dlp-aarch64-apple-darwin" \
-                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
-              chmod +x "$BINDIR/yt-dlp-aarch64-apple-darwin"
-
-              curl -L -o ffmpeg.zip "https://evermeet.cx/ffmpeg/getrelease/zip"
-              unzip -o ffmpeg.zip -d "$BINDIR"
-              mv "$BINDIR/ffmpeg" "$BINDIR/ffmpeg-aarch64-apple-darwin"
-              curl -L -o ffprobe.zip "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
-              unzip -o ffprobe.zip -d "$BINDIR"
-              mv "$BINDIR/ffprobe" "$BINDIR/ffprobe-aarch64-apple-darwin"
-              rm -f ffmpeg.zip ffprobe.zip
-              chmod +x "$BINDIR/ffmpeg-aarch64-apple-darwin" "$BINDIR/ffprobe-aarch64-apple-darwin"
-              ;;
-
-            x86_64-apple-darwin)
-              curl -L -o "$BINDIR/yt-dlp-x86_64-apple-darwin" \
-                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
-              chmod +x "$BINDIR/yt-dlp-x86_64-apple-darwin"
-
-              curl -L -o ffmpeg.zip "https://evermeet.cx/ffmpeg/getrelease/zip"
-              unzip -o ffmpeg.zip -d "$BINDIR"
-              mv "$BINDIR/ffmpeg" "$BINDIR/ffmpeg-x86_64-apple-darwin"
-              curl -L -o ffprobe.zip "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
-              unzip -o ffprobe.zip -d "$BINDIR"
-              mv "$BINDIR/ffprobe" "$BINDIR/ffprobe-x86_64-apple-darwin"
-              rm -f ffmpeg.zip ffprobe.zip
-              chmod +x "$BINDIR/ffmpeg-x86_64-apple-darwin" "$BINDIR/ffprobe-x86_64-apple-darwin"
-              ;;
-
-            x86_64-unknown-linux-gnu)
-              curl -L -o "$BINDIR/yt-dlp-x86_64-unknown-linux-gnu" \
-                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
-              chmod +x "$BINDIR/yt-dlp-x86_64-unknown-linux-gnu"
-
-              # Create dummy ffmpeg/ffprobe stubs so Tauri externalBin doesn't fail.
-              # On Linux, we depend on system ffmpeg (declared in deb depends).
-              touch "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu"
-              touch "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
-              chmod +x "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu" "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
-              ;;
-          esac
-
-          echo "Binaries in $BINDIR:"
-          ls -la "$BINDIR"
-
       - name: Import Apple certificate
         if: matrix.platform == 'macos-latest'
         env:
@@ -123,17 +67,6 @@ jobs:
           security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
           security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
-
-      - name: Codesign external binaries
-        if: matrix.platform == 'macos-latest'
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        run: |
-          BINDIR="src-tauri/binaries"
-          for bin in "$BINDIR"/*-apple-darwin; do
-            echo "Signing $bin..."
-            codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --deep "$bin"
-          done
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -174,26 +107,6 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
-
-      - name: Download external binaries
-        shell: bash
-        run: |
-          BINDIR="src-tauri/binaries"
-          mkdir -p "$BINDIR"
-
-          curl -L -o "$BINDIR/yt-dlp-x86_64-pc-windows-msvc.exe" \
-            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-
-          curl -L -o ffmpeg.zip \
-            "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-          unzip -o ffmpeg.zip -d ffmpeg-win
-          FFDIR=$(ls -d ffmpeg-win/ffmpeg-*)
-          cp "$FFDIR/bin/ffmpeg.exe" "$BINDIR/ffmpeg-x86_64-pc-windows-msvc.exe"
-          cp "$FFDIR/bin/ffprobe.exe" "$BINDIR/ffprobe-x86_64-pc-windows-msvc.exe"
-          rm -rf ffmpeg.zip ffmpeg-win
-
-          echo "Binaries in $BINDIR:"
-          ls -la "$BINDIR"
 
       - name: Build Tauri app
         shell: cmd

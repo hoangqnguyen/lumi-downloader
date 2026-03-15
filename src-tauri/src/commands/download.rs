@@ -47,8 +47,8 @@ pub async fn cancel_download(
     // Mark as cancelled so the event loop won't emit Done
     state.cancelled.insert(job_id.clone());
     // Kill the yt-dlp child process
-    if let Some((_, child)) = state.children.remove(&job_id) {
-        let _ = child.kill();
+    if let Some((_, mut child)) = state.children.remove(&job_id) {
+        let _ = child.kill().await;
     }
     // Abort the tokio task
     if let Some((_, handle)) = state.abort_handles.remove(&job_id) {
