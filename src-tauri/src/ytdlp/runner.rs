@@ -225,6 +225,8 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "--newline".into(),
         "--no-colors".into(),
+        "--encoding".into(),
+        "utf-8".into(),
         "--no-playlist".into(),
         "--progress".into(),
         "--progress-template".into(),
