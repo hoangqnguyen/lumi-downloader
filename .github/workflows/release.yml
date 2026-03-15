@@ -97,13 +97,10 @@ jobs:
                 "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
               chmod +x "$BINDIR/yt-dlp-x86_64-unknown-linux-gnu"
 
-              curl -L -o ffmpeg.tar.xz \
-                "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
-              tar -xf ffmpeg.tar.xz
-              FFDIR=$(ls -d ffmpeg-*-amd64-static)
-              cp "$FFDIR/ffmpeg" "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu"
-              cp "$FFDIR/ffprobe" "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
-              rm -rf ffmpeg.tar.xz "$FFDIR"
+              # Create dummy ffmpeg/ffprobe stubs so Tauri externalBin doesn't fail.
+              # On Linux, we depend on system ffmpeg (declared in deb depends).
+              touch "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu"
+              touch "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
               chmod +x "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu" "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
               ;;
           esac
@@ -126,6 +123,17 @@ jobs:
           security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
           security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
+
+      - name: Codesign external binaries
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          BINDIR="src-tauri/binaries"
+          for bin in "$BINDIR"/*-apple-darwin; do
+            echo "Signing $bin..."
+            codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" --deep "$bin"
+          done
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
