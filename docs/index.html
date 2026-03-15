@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumi — Download any video, free</title>
+  <meta name="description" content="Free, fast, private video and audio downloader for macOS, Windows, and Linux. Open source." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #09090B;
+      --surface: #18181B;
+      --surface-2: #1E1E22;
+      --border: #27272A;
+      --border-hover: #3F3F46;
+      --text: #FAFAFA;
+      --text-secondary: #A1A1AA;
+      --muted: #71717A;
+      --accent: #F97316;
+      --accent-glow: rgba(249, 115, 22, 0.15);
+      --accent-subtle: rgba(249, 115, 22, 0.08);
+      --radius: 16px;
+      --max: 920px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ─── GRAIN OVERLAY ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(9, 9, 11, 0.8);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 16px 40px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.3px;
+      color: var(--text);
+    }
+
+    .logo img {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13.5px;
+      color: var(--muted);
+      transition: color 0.2s;
+      font-weight: 500;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .btn-nav {
+      background: var(--accent);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.1px;
+      transition: all 0.2s;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .btn-nav:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 0 30px rgba(249, 115, 22, 0.25);
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 80px 40px 72px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-subtle);
+      border: 1px solid rgba(249, 115, 22, 0.2);
+      color: var(--accent);
+      padding: 5px 14px;
+      border-radius: 100px;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-bottom: 28px;
+    }
+
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 68px);
+      font-weight: 800;
+      letter-spacing: -2.5px;
+      line-height: 1.05;
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, var(--accent), #FB923C, #FBBF24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      font-size: 17px;
+      color: var(--text-secondary);
+      max-width: 480px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #fff;
+      padding: 13px 28px;
+      border-radius: 12px;
+      font-size: 14.5px;
+      font-weight: 650;
+      letter-spacing: -0.1px;
+      transition: all 0.2s;
+      box-shadow: 0 0 24px var(--accent-glow), 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+      box-shadow: 0 0 36px rgba(249, 115, 22, 0.3), 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      color: var(--text-secondary);
+      padding: 13px 28px;
+      border-radius: 12px;
+      font-size: 14.5px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: var(--surface-2);
+      border-color: var(--border-hover);
+      color: var(--text);
+    }
+
+    .hero-note {
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ─── SCREENSHOT ─── */
+    .screenshot-wrap {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 0 40px 80px;
+    }
+
+    .screenshot-outer {
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.03),
+        0 20px 60px rgba(0,0,0,0.5),
+        0 4px 16px rgba(0,0,0,0.3);
+    }
+
+    .screenshot-outer img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .screenshot-caption {
+      text-align: center;
+      font-size: 12.5px;
+      color: var(--muted);
+      margin-top: 16px;
+      letter-spacing: 0.01em;
+    }
+
+    /* ─── SECTION ─── */
+    .section {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 80px 40px;
+    }
+
+    .section-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .section-heading {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .section-sub {
+      font-size: 16px;
+      color: var(--text-secondary);
+      margin-bottom: 48px;
+      font-weight: 400;
+    }
+
+    /* ─── FEATURES ─── */
+    .features {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .feat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 26px;
+      transition: all 0.25s;
+    }
+    .feat:hover {
+      border-color: var(--border-hover);
+      background: var(--surface-2);
+      transform: translateY(-2px);
+    }
+
+    .feat-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-subtle);
+      border: 1px solid rgba(249, 115, 22, 0.15);
+      border-radius: 10px;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .feat h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: -0.2px;
+      color: var(--text);
+    }
+
+    .feat p {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    /* ─── STEPS ─── */
+    .steps {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      transition: all 0.25s;
+      position: relative;
+    }
+    .step:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .step-n {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--accent-subtle);
+      border: 1px solid rgba(249, 115, 22, 0.15);
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .step h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: -0.2px;
+      color: var(--text);
+    }
+
+    .step p {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+    }
+
+    /* ─── PLATFORMS ─── */
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .plt {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.2s;
+    }
+    .plt:hover {
+      border-color: var(--accent);
+      background: var(--accent-subtle);
+      transform: translateY(-1px);
+    }
+
+    .plt-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface-2);
+      border-radius: 9px;
+      font-size: 17px;
+      flex-shrink: 0;
+    }
+
+    .plt-info { min-width: 0; }
+    .plt-name { font-weight: 600; font-size: 13.5px; }
+    .plt-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+    /* ─── DONATE ─── */
+    .donate-box {
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(251, 191, 36, 0.05));
+      border: 1px solid rgba(249, 115, 22, 0.2);
+      border-radius: 20px;
+      padding: 40px 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 32px;
+    }
+
+    .donate-copy h2 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .donate-copy p {
+      font-size: 14.5px;
+      color: var(--text-secondary);
+      max-width: 380px;
+      line-height: 1.65;
+    }
+
+    .donate-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn-donate {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 11px 24px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 650;
+      white-space: nowrap;
+      transition: all 0.2s;
+      letter-spacing: -0.1px;
+    }
+
+    .btn-donate.solid {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .btn-donate.solid:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 0 30px rgba(249, 115, 22, 0.25);
+    }
+    .btn-donate.outline {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-donate.outline:hover {
+      border-color: var(--border-hover);
+      color: var(--text);
+    }
+
+    /* ─── FOOTER ─── */
+    .footer-wrap {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 28px 40px 40px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-left {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .footer-right {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-right a {
+      font-size: 13px;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .footer-right a:hover { color: var(--text); }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 680px) {
+      .nav-inner { padding: 14px 20px; }
+      .nav-links { display: none; }
+      .hero { padding: 48px 20px 56px; }
+      .hero h1 { font-size: 36px; letter-spacing: -1.5px; }
+      .screenshot-wrap { padding: 0 20px 56px; }
+      .section { padding: 48px 20px; }
+      .features { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; gap: 10px; }
+      .platform-grid { grid-template-columns: 1fr; }
+      .donate-box { flex-direction: column; padding: 28px 24px; text-align: center; }
+      .donate-actions { width: 100%; }
+      .btn-donate { width: 100%; }
+      .footer-wrap { flex-direction: column; gap: 12px; padding: 20px; }
+      .hero-actions { flex-direction: column; }
+      .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-inner">
+    <div class="logo">
+      <img src="icon.png" alt="Lumi" />
+      Lumi
+    </div>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#download">Download</a></li>
+      <li><a href="https://github.com/hoangqnguyen/youtube-downloader" target="_blank">GitHub</a></li>
+    </ul>
+    <a href="https://hoangapps.gumroad.com/l/lumi-downloader" target="_blank" class="btn-nav">Download</a>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<div class="hero">
+  <div class="hero-badge">Open source &amp; free forever</div>
+  <h1>Download any video.<br><span class="gradient">Free, fast, private.</span></h1>
+  <p class="hero-desc">Paste a link, get your file. Videos, audio, whole playlists — straight to your machine.</p>
+  <div class="hero-actions">
+    <a href="https://hoangapps.gumroad.com/l/lumi-downloader" target="_blank" class="btn-primary">Download for Mac</a>
+    <a href="#download" class="btn-secondary">All platforms</a>
+  </div>
+  <p class="hero-note">macOS, Windows &amp; Linux &middot; No account required</p>
+</div>
+
+<!-- ─── SCREENSHOT ─── -->
+<div class="screenshot-wrap">
+  <div class="screenshot-outer">
+    <img src="screenshot.png" alt="Lumi app — download in progress" />
+  </div>
+  <p class="screenshot-caption">The actual app. What you see is what you get.</p>
+</div>
+
+<!-- ─── FEATURES ─── -->
+<div class="section" id="features">
+  <div class="section-label">Features</div>
+  <h2 class="section-heading">Why people use Lumi</h2>
+  <p class="section-sub">No fluff. Just the stuff that matters.</p>
+  <div class="features">
+    <div class="feat">
+      <div class="feat-icon">&#9889;</div>
+      <h3>Instant downloads</h3>
+      <p>No countdowns, no rate limits. Lumi pulls at your full connection speed the moment you hit paste.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">&#127925;</div>
+      <h3>Audio extraction</h3>
+      <p>Strip the video, keep the sound. Clean MP3 or FLAC with metadata and album art intact.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">&#128203;</div>
+      <h3>Batch playlists</h3>
+      <p>Paste a playlist link, walk away. Lumi queues every track and downloads them all.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">&#128274;</div>
+      <h3>Fully offline</h3>
+      <p>No account, no cloud, no tracking. Files go straight to your folder and stay there.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── HOW IT WORKS ─── -->
+<div class="section">
+  <div class="section-label">How it works</div>
+  <h2 class="section-heading">Three steps</h2>
+  <p class="section-sub">Zero setup. Open the app and go.</p>
+  <div class="steps">
+    <div class="step">
+      <div class="step-n">1</div>
+      <h3>Paste a URL</h3>
+      <p>YouTube, Twitter/X, TikTok, Vimeo, SoundCloud — just paste and go.</p>
+    </div>
+    <div class="step">
+      <div class="step-n">2</div>
+      <h3>Pick your format</h3>
+      <p>4K, 1080p, MP3, FLAC, subtitles — pick exactly what you want.</p>
+    </div>
+    <div class="step">
+      <div class="step-n">3</div>
+      <h3>It's in your folder</h3>
+      <p>Saved to your chosen folder. No browser tray, no temp files.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ─── DONATE ─── -->
+<div class="section">
+  <div class="donate-box">
+    <div class="donate-copy">
+      <h2>Like Lumi? Buy me a coffee.</h2>
+      <p>Lumi is free and open source. A small donation helps keep it maintained and improving.</p>
+    </div>
+    <div class="donate-actions">
+      <a href="https://buymeacoffee.com/johnnyng" target="_blank" class="btn-donate solid">Buy me a coffee</a>
+      <a href="https://github.com/hoangqnguyen/youtube-downloader" target="_blank" class="btn-donate outline">Star on GitHub</a>
+    </div>
+  </div>
+</div>
+
+<!-- ─── FOOTER ─── -->
+<div class="footer-wrap">
+  <div class="footer-left">&copy; 2026 Lumi &middot; MIT License</div>
+  <div class="footer-right">
+    <a href="#">Changelog</a>
+    <a href="https://github.com/hoangqnguyen/youtube-downloader">GitHub</a>
+    <a href="#">Privacy</a>
+    <a href="#">Contact</a>
+  </div>
+</div>
+
+</body>
+</html>

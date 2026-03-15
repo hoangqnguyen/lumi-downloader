@@ -1,0 +1,157 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            arch_label: aarch64
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            arch_label: x86_64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            arch_label: x86_64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch_label: x86_64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Download external binaries
+        shell: bash
+        run: |
+          BINDIR="src-tauri/binaries"
+          mkdir -p "$BINDIR"
+
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin)
+              # yt-dlp
+              curl -L -o "$BINDIR/yt-dlp-aarch64-apple-darwin" \
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+              chmod +x "$BINDIR/yt-dlp-aarch64-apple-darwin"
+
+              # ffmpeg + ffprobe (macOS ARM)
+              curl -L -o ffmpeg.zip \
+                "https://evermeet.cx/ffmpeg/getrelease/zip"
+              unzip -o ffmpeg.zip -d "$BINDIR"
+              mv "$BINDIR/ffmpeg" "$BINDIR/ffmpeg-aarch64-apple-darwin"
+              curl -L -o ffprobe.zip \
+                "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+              unzip -o ffprobe.zip -d "$BINDIR"
+              mv "$BINDIR/ffprobe" "$BINDIR/ffprobe-aarch64-apple-darwin"
+              rm -f ffmpeg.zip ffprobe.zip
+              chmod +x "$BINDIR/ffmpeg-aarch64-apple-darwin" "$BINDIR/ffprobe-aarch64-apple-darwin"
+              ;;
+
+            x86_64-apple-darwin)
+              # yt-dlp
+              curl -L -o "$BINDIR/yt-dlp-x86_64-apple-darwin" \
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+              chmod +x "$BINDIR/yt-dlp-x86_64-apple-darwin"
+
+              # ffmpeg + ffprobe (macOS x86_64)
+              curl -L -o ffmpeg.zip \
+                "https://evermeet.cx/ffmpeg/getrelease/zip"
+              unzip -o ffmpeg.zip -d "$BINDIR"
+              mv "$BINDIR/ffmpeg" "$BINDIR/ffmpeg-x86_64-apple-darwin"
+              curl -L -o ffprobe.zip \
+                "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+              unzip -o ffprobe.zip -d "$BINDIR"
+              mv "$BINDIR/ffprobe" "$BINDIR/ffprobe-x86_64-apple-darwin"
+              rm -f ffmpeg.zip ffprobe.zip
+              chmod +x "$BINDIR/ffmpeg-x86_64-apple-darwin" "$BINDIR/ffprobe-x86_64-apple-darwin"
+              ;;
+
+            x86_64-unknown-linux-gnu)
+              # yt-dlp
+              curl -L -o "$BINDIR/yt-dlp-x86_64-unknown-linux-gnu" \
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+              chmod +x "$BINDIR/yt-dlp-x86_64-unknown-linux-gnu"
+
+              # ffmpeg + ffprobe (Linux static builds)
+              curl -L -o ffmpeg.tar.xz \
+                "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+              tar -xf ffmpeg.tar.xz
+              FFDIR=$(ls -d ffmpeg-*-amd64-static)
+              cp "$FFDIR/ffmpeg" "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu"
+              cp "$FFDIR/ffprobe" "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
+              rm -rf ffmpeg.tar.xz "$FFDIR"
+              chmod +x "$BINDIR/ffmpeg-x86_64-unknown-linux-gnu" "$BINDIR/ffprobe-x86_64-unknown-linux-gnu"
+              ;;
+
+            x86_64-pc-windows-msvc)
+              # yt-dlp
+              curl -L -o "$BINDIR/yt-dlp-x86_64-pc-windows-msvc.exe" \
+                "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+
+              # ffmpeg + ffprobe (Windows)
+              curl -L -o ffmpeg.zip \
+                "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+              unzip -o ffmpeg.zip -d ffmpeg-win
+              FFDIR=$(ls -d ffmpeg-win/ffmpeg-*)
+              cp "$FFDIR/bin/ffmpeg.exe" "$BINDIR/ffmpeg-x86_64-pc-windows-msvc.exe"
+              cp "$FFDIR/bin/ffprobe.exe" "$BINDIR/ffprobe-x86_64-pc-windows-msvc.exe"
+              rm -rf ffmpeg.zip ffmpeg-win
+              ;;
+          esac
+
+          echo "Binaries in $BINDIR:"
+          ls -la "$BINDIR"
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Lumi Downloader ${{ github.ref_name }}'
+          releaseBody: |
+            Download the installer for your platform below.
+
+            **macOS:** `.dmg` file
+            **Windows:** `.msi` installer
+            **Linux:** `.AppImage` or `.deb` package
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
