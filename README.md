@@ -91,15 +91,21 @@ curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
 cp src-tauri/binaries/yt-dlp-aarch64-apple-darwin \
    src-tauri/binaries/yt-dlp-x86_64-apple-darwin
 
-# ffmpeg — Apple Silicon
+# ffmpeg + ffprobe — Apple Silicon
 curl -L "https://www.osxexperts.net/ffmpeg80arm.zip" -o /tmp/ffmpeg-arm.zip
+curl -L "https://www.osxexperts.net/ffprobe80arm.zip" -o /tmp/ffprobe-arm.zip
 unzip -o /tmp/ffmpeg-arm.zip -d /tmp/
+unzip -o /tmp/ffprobe-arm.zip -d /tmp/
 cp /tmp/ffmpeg src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+cp /tmp/ffprobe src-tauri/binaries/ffprobe-aarch64-apple-darwin
 
-# ffmpeg — Intel
+# ffmpeg + ffprobe — Intel
 curl -L "https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip" -o /tmp/ffmpeg-x64.zip
+curl -L "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip" -o /tmp/ffprobe-x64.zip
 unzip -o /tmp/ffmpeg-x64.zip -d /tmp/
+unzip -o /tmp/ffprobe-x64.zip -d /tmp/
 cp /tmp/ffmpeg src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+cp /tmp/ffprobe src-tauri/binaries/ffprobe-x86_64-apple-darwin
 
 chmod +x src-tauri/binaries/yt-dlp-* src-tauri/binaries/ffmpeg-*
 ```
@@ -142,12 +148,14 @@ Add the following to `src-tauri/tauri.conf.json` under `bundle.macOS` to enable 
 Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
   -OutFile "src-tauri\binaries\yt-dlp-x86_64-pc-windows-msvc.exe"
 
-# ffmpeg
+# ffmpeg + ffprobe
 Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip" `
   -OutFile "$env:TEMP\ffmpeg.zip"
 Expand-Archive "$env:TEMP\ffmpeg.zip" -DestinationPath "$env:TEMP\ffmpeg-extract" -Force
 $ffmpegExe = Get-ChildItem "$env:TEMP\ffmpeg-extract" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+$ffprobeExe = Get-ChildItem "$env:TEMP\ffmpeg-extract" -Recurse -Filter "ffprobe.exe" | Select-Object -First 1
 Copy-Item $ffmpegExe.FullName "src-tauri\binaries\ffmpeg-x86_64-pc-windows-msvc.exe"
+Copy-Item $ffprobeExe.FullName "src-tauri\binaries\ffprobe-x86_64-pc-windows-msvc.exe"
 ```
 
 ### Linux — sidecar binaries
@@ -159,8 +167,31 @@ chmod +x src-tauri/binaries/yt-dlp-x86_64-unknown-linux-gnu
 
 sudo apt install ffmpeg
 cp $(which ffmpeg) src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
-chmod +x src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
+cp $(which ffprobe) src-tauri/binaries/ffprobe-x86_64-unknown-linux-gnu
+chmod +x src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu src-tauri/binaries/ffprobe-x86_64-unknown-linux-gnu
 ```
+
+Additional system dependencies (Linux)
+
+Building the Tauri app on Linux requires development libraries for GTK / WebKit and other build tools. On Debian/Ubuntu (and Pop!_OS) install:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config cmake libglib2.0-dev libgdk-pixbuf2.0-dev \
+  libwebkit2gtk-4.1-dev libsoup-3.0-dev libssl-dev squashfs-tools patchelf
+```
+
+On Fedora/RHEL use the equivalent packages (example):
+
+```bash
+sudo dnf install -y @development-tools pkgconfig cmake glib2-devel gdk-pixbuf2-devel \
+  webkit2gtk4.1-devel libsoup3-devel openssl-devel squashfs-tools patchelf
+```
+
+Notes:
+- Ensure `pkg-config` can find `libsoup-3.0.pc` and other .pc files (set `PKG_CONFIG_PATH` if you installed libraries to a custom location).
+- AppImage bundling requires `mksquashfs` (from `squashfs-tools`) and `patchelf`. If AppImage creation fails, check those tools and whether `/tmp` is mounted with `noexec` (this can prevent the linuxdeploy AppImage from running).
+
 
 ---
 
@@ -168,12 +199,12 @@ chmod +x src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu
 
 Tauri requires bundled binaries to follow the `{name}-{rust-target-triple}` naming convention.
 
-| Platform | yt-dlp | ffmpeg |
-|----------|--------|--------|
-| macOS Apple Silicon | `yt-dlp-aarch64-apple-darwin` | `ffmpeg-aarch64-apple-darwin` |
-| macOS Intel | `yt-dlp-x86_64-apple-darwin` | `ffmpeg-x86_64-apple-darwin` |
-| Windows (MSVC) | `yt-dlp-x86_64-pc-windows-msvc.exe` | `ffmpeg-x86_64-pc-windows-msvc.exe` |
-| Linux x64 | `yt-dlp-x86_64-unknown-linux-gnu` | `ffmpeg-x86_64-unknown-linux-gnu` |
+| Platform | yt-dlp | ffmpeg | ffprobe |
+|----------|--------|--------|---------|
+| macOS Apple Silicon | `yt-dlp-aarch64-apple-darwin` | `ffmpeg-aarch64-apple-darwin` | `ffprobe-aarch64-apple-darwin` |
+| macOS Intel | `yt-dlp-x86_64-apple-darwin` | `ffmpeg-x86_64-apple-darwin` | `ffprobe-x86_64-apple-darwin` |
+| Windows (MSVC) | `yt-dlp-x86_64-pc-windows-msvc.exe` | `ffmpeg-x86_64-pc-windows-msvc.exe` | `ffprobe-x86_64-pc-windows-msvc.exe` |
+| Linux x64 | `yt-dlp-x86_64-unknown-linux-gnu` | `ffmpeg-x86_64-unknown-linux-gnu` | `ffprobe-x86_64-unknown-linux-gnu` |
 
 To find your exact triple: `rustc -vV | grep host`
 

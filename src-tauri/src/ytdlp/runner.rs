@@ -197,19 +197,25 @@ pub async fn run_download(
     Ok(())
 }
 
-fn find_ffmpeg() -> Option<String> {
-    // Prefer the bundled sidecar (placed alongside the executable by Tauri)
+/// Returns the directory containing ffmpeg (and ffprobe) so yt-dlp can find both.
+fn find_ffmpeg_dir() -> Option<String> {
+    // Prefer the bundled sidecar directory (placed alongside the executable by Tauri)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             for name in &["ffmpeg.exe", "ffmpeg"] {
-                let bundled = dir.join(name);
-                if bundled.exists() {
-                    return Some(bundled.to_string_lossy().into_owned());
+                if dir.join(name).exists() {
+                    return Some(dir.to_string_lossy().into_owned());
                 }
             }
         }
     }
-    // Fall back to system installations
+    // Search PATH so package-manager installs (apt, brew, winget) are found automatically
+    if let Some(ffmpeg_path) = which_bin("ffmpeg") {
+        if let Some(dir) = std::path::Path::new(&ffmpeg_path).parent() {
+            return Some(dir.to_string_lossy().into_owned());
+        }
+    }
+    // Fall back to well-known static locations
     let candidates = [
         "/opt/homebrew/bin/ffmpeg", // Homebrew Apple Silicon
         "/usr/local/bin/ffmpeg",    // Homebrew Intel
@@ -218,7 +224,81 @@ fn find_ffmpeg() -> Option<String> {
     candidates
         .iter()
         .find(|&&p| std::path::Path::new(p).exists())
+        .and_then(|&p| std::path::Path::new(p).parent())
+        .map(|dir| dir.to_string_lossy().into_owned())
+}
+
+/// Returns a path to a Node.js binary if one exists on the system.
+fn find_node() -> Option<String> {
+    // Search PATH first (works when nvm is active in the current shell)
+    if let Some(node) = which_bin("node").or_else(|| which_bin("nodejs")) {
+        return Some(node);
+    }
+    // Fall back to version-manager directories (handles GUI app launches where shell init doesn't run)
+    if let Some(node) = find_node_from_version_managers() {
+        return Some(node);
+    }
+    // Fall back to well-known static locations
+    let candidates = [
+        "/opt/homebrew/bin/node", // Homebrew Apple Silicon
+        "/usr/local/bin/node",    // Homebrew Intel / nvm default
+        "/usr/bin/node",          // Linux system
+        "/usr/bin/nodejs",        // Debian/Ubuntu alias
+    ];
+    candidates
+        .iter()
+        .find(|&&p| std::path::Path::new(p).exists())
         .map(|&s| s.to_string())
+}
+
+/// Searches PATH for a binary, returning its full path if found.
+fn which_bin(name: &str) -> Option<String> {
+    let path_var = std::env::var("PATH").ok()?;
+    #[cfg(target_os = "windows")]
+    let sep = ';';
+    #[cfg(not(target_os = "windows"))]
+    let sep = ':';
+    for dir in path_var.split(sep) {
+        let candidate = std::path::Path::new(dir).join(name);
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
+    }
+    None
+}
+
+/// Searches nvm/fnm/volta version manager directories for a Node.js binary.
+fn find_node_from_version_managers() -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    // nvm: $NVM_BIN or glob $HOME/.nvm/versions/node/*/bin/node (pick newest by sorting)
+    if let Ok(nvm_bin) = std::env::var("NVM_BIN") {
+        let candidate = std::path::Path::new(&nvm_bin).join("node");
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
+    }
+    // Fallback: find newest nvm node by listing version dirs
+    let nvm_versions = std::path::Path::new(&home).join(".nvm/versions/node");
+    if nvm_versions.is_dir() {
+        if let Ok(mut entries) = std::fs::read_dir(&nvm_versions) {
+            let mut versions: Vec<std::path::PathBuf> = entries
+                .filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| p.join("bin/node").is_file())
+                .collect();
+            versions.sort();
+            if let Some(newest) = versions.last() {
+                return Some(newest.join("bin/node").to_string_lossy().into_owned());
+            }
+        }
+    }
+    // volta: $VOLTA_HOME/bin/node
+    if let Ok(volta_home) = std::env::var("VOLTA_HOME") {
+        let candidate = std::path::Path::new(&volta_home).join("bin/node");
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
+    }
+    None
 }
 
 fn build_args(req: &DownloadRequest) -> Vec<String> {
@@ -282,9 +362,14 @@ fn build_args(req: &DownloadRequest) -> Vec<String> {
         "after_move:YTDL_FINAL:%(filepath)s".into(),
     ]);
 
-    // Pass explicit ffmpeg path so it's found when running inside the app bundle
-    if let Some(ffmpeg) = find_ffmpeg() {
-        args.extend(["--ffmpeg-location".into(), ffmpeg]);
+    // Pass ffmpeg directory so yt-dlp can find both ffmpeg and ffprobe
+    if let Some(dir) = find_ffmpeg_dir() {
+        args.extend(["--ffmpeg-location".into(), dir]);
+    }
+
+    // Pass a JS runtime so yt-dlp can extract all YouTube formats
+    if let Some(node) = find_node() {
+        args.extend(["--js-runtimes".into(), format!("node:{node}")]);
     }
 
     // Use browser cookies to bypass bot detection / age gates

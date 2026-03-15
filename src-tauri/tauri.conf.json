@@ -38,7 +38,8 @@
     ],
     "externalBin": [
       "binaries/yt-dlp",
-      "binaries/ffmpeg"
+      "binaries/ffmpeg",
+      "binaries/ffprobe"
     ],
     "macOS": {
       "minimumSystemVersion": "10.15",
