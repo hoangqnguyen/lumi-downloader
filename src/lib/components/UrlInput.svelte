@@ -24,7 +24,7 @@
     try {
       const parsed = parseInput(trimmed);
       if (parsed.length === 0) {
-        error = "No valid YouTube URLs found.";
+        error = "No valid YT URLs found.";
         return;
       }
 

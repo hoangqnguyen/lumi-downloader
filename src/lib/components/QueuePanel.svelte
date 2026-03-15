@@ -19,7 +19,7 @@
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <p>No downloads yet</p>
-      <span>Paste YouTube URLs above to get started</span>
+      <span>Paste YT URLs above to get started</span>
     </div>
   {:else}
     <div class="queue-header">

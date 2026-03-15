@@ -1,6 +1,6 @@
-# YouTube Downloader
+# YT Downloader
 
-A fast, minimal desktop app for downloading YouTube videos and playlists. Built with [Tauri v2](https://tauri.app/) (Rust backend) and [Svelte 5](https://svelte.dev/) (frontend).
+A fast, minimal desktop app for downloading YT videos and playlists. Built with [Tauri v2](https://tauri.app/) (Rust backend) and [Svelte 5](https://svelte.dev/) (frontend).
 
 ![App screenshot](docs/screenshot.png)
 
