@@ -200,9 +200,11 @@ fn find_ffmpeg() -> Option<String> {
     // Prefer the bundled sidecar (placed alongside the executable by Tauri)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let bundled = dir.join("ffmpeg");
-            if bundled.exists() {
-                return Some(bundled.to_string_lossy().into_owned());
+            for name in &["ffmpeg.exe", "ffmpeg"] {
+                let bundled = dir.join(name);
+                if bundled.exists() {
+                    return Some(bundled.to_string_lossy().into_owned());
+                }
             }
         }
     }

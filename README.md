@@ -55,28 +55,24 @@ All platforms require the same base tools, plus platform-specific steps below.
    winget install OpenJS.NodeJS.LTS
    ```
 
-4. **Install yt-dlp and ffmpeg**
+4. **Download sidecar binaries (yt-dlp + ffmpeg)**
+
+   Both binaries are bundled inside the app — no system installation required. From the project root in **PowerShell**:
 
    ```powershell
-   winget install yt-dlp.yt-dlp
-   winget install yt-dlp.FFmpeg
+   # yt-dlp — standalone Windows executable
+   Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
+     -OutFile "src-tauri\binaries\yt-dlp-x86_64-pc-windows-msvc.exe"
+
+   # ffmpeg — static build
+   Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip" `
+     -OutFile "$env:TEMP\ffmpeg.zip"
+   Expand-Archive "$env:TEMP\ffmpeg.zip" -DestinationPath "$env:TEMP\ffmpeg-extract" -Force
+   $ffmpegExe = Get-ChildItem "$env:TEMP\ffmpeg-extract" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+   Copy-Item $ffmpegExe.FullName "src-tauri\binaries\ffmpeg-x86_64-pc-windows-msvc.exe"
    ```
 
-5. **Copy yt-dlp as Tauri sidecar**
-
-   The sidecar binary must be named with the Rust target triple. From the project root in **PowerShell**:
-
-   ```powershell
-   $src = (Get-Command yt-dlp).Source
-   Copy-Item $src "src-tauri\binaries\yt-dlp-x86_64-pc-windows-msvc.exe"
-   ```
-
-   Or find it manually — it's typically at:
-   ```
-   C:\Users\<you>\AppData\Local\Microsoft\WinGet\Packages\yt-dlp.yt-dlp_*\yt-dlp.exe
-   ```
-
-6. **Configure the MSVC linker** (only needed if building from Git Bash / WSL)
+5. **Configure the MSVC linker** (only needed if building from Git Bash / WSL)
 
    If `cargo build` fails with a linker error, create `src-tauri/.cargo/config.toml`:
 
@@ -361,4 +357,4 @@ Install the system WebKit dependencies listed in the Linux setup section for you
 Run `chmod +x src-tauri/binaries/yt-dlp-*` to make the binary executable.
 
 **Downloads fail with ffmpeg error**
-ffmpeg is bundled as a sidecar — make sure `src-tauri/binaries/ffmpeg-{triple}` exists and is executable (`chmod +x`). Re-run the sidecar download step in the macOS setup section.
+ffmpeg is bundled as a sidecar — make sure `src-tauri/binaries/ffmpeg-{triple}` exists. Re-run the sidecar download step for your platform (macOS: step 4, Windows: step 5). On macOS/Linux also run `chmod +x src-tauri/binaries/ffmpeg-*`.
