@@ -7,6 +7,14 @@ const YT_PLAYLIST_RE =
 const YT_WATCH_WITH_LIST_RE =
   /youtube\.com\/watch\?(?:.*&)?v=([A-Za-z0-9_-]{11})(?:.*&)?list=([A-Za-z0-9_-]+)/;
 
+// Matches YouTube channel URLs:
+// - youtube.com/@ChannelName
+// - youtube.com/channel/UCxxxxx
+// - youtube.com/c/ChannelName
+// - youtube.com/user/Username
+const YT_CHANNEL_RE =
+  /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:@[\w.-]+|(?:channel|c|user)\/[\w.-]+)/;
+
 // Matches all yt-dlp supported TikTok URL patterns:
 // - Video:      tiktok.com/@user/video/1234
 // - Short:      vm.tiktok.com/xxx, vt.tiktok.com/xxx, tiktok.com/t/xxx
@@ -71,6 +79,11 @@ export function parseInput(raw: string): ParsedUrl[] {
     }
 
     if (YT_PLAYLIST_RE.test(url)) {
+      result.push({ type: "playlist", url });
+      continue;
+    }
+
+    if (YT_CHANNEL_RE.test(url)) {
       result.push({ type: "playlist", url });
       continue;
     }

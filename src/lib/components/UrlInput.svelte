@@ -92,7 +92,7 @@
       bind:this={textarea}
       bind:value
       onkeydown={onKeydown}
-placeholder="https://youtube.com/watch?v=... or TikTok link"
+placeholder="https://youtube.com/watch?v=... or channel/playlist/TikTok link"
       rows={3}
       disabled={loading}
     ></textarea>
