@@ -50,6 +50,8 @@ pub fn run() {
             settings::reveal_file,
             setup::check_binaries,
             setup::setup_binaries,
+            setup::check_ytdlp_update,
+            setup::update_ytdlp,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

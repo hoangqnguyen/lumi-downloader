@@ -1,6 +1,6 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { PlaylistEntry, JobEvent } from "./types";
+import type { PlaylistEntry, JobEvent, YtdlpVersionInfo } from "./types";
 
 export function invoke<T>(
   cmd: string,
@@ -75,4 +75,12 @@ export async function listenSetupProgress(
   handler: (message: string) => void
 ): Promise<() => void> {
   return listen<{ message: string }>("setup-progress", (e) => handler(e.payload.message));
+}
+
+export async function checkYtdlpUpdate(): Promise<YtdlpVersionInfo> {
+  return invoke<YtdlpVersionInfo>("check_ytdlp_update");
+}
+
+export async function updateYtdlp(): Promise<string> {
+  return invoke<string>("update_ytdlp");
 }

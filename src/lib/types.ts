@@ -66,3 +66,9 @@ export interface PlaylistEntry {
   duration?: number;
   thumbnail?: string;
 }
+
+export interface YtdlpVersionInfo {
+  current: string;
+  latest: string;
+  update_available: boolean;
+}

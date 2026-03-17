@@ -95,6 +95,11 @@ pub async fn download_binaries(
     Ok(())
 }
 
+/// Public wrapper for downloading yt-dlp (used by update command).
+pub async fn download_ytdlp_public(dir: &PathBuf) -> Result<(), String> {
+    download_ytdlp(dir).await
+}
+
 async fn download_ytdlp(dir: &PathBuf) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos";
