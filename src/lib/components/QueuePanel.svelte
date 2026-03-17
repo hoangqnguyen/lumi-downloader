@@ -1,13 +1,31 @@
 <script lang="ts">
   import { getJobs, clearCompleted, clearAll, retryAllFailed, getActiveCount, getPendingCount, getDoneCount, getErrorCount } from "../stores/queue.svelte";
   import QueueItem from "./QueueItem.svelte";
+  import type { DownloadJob } from "../types";
 
-  let jobs = $derived(getJobs());
-  let isEmpty = $derived(jobs.length === 0);
+  type Filter = "all" | "active" | "pending" | "done" | "error";
+  let filter = $state<Filter>("all");
+
+  let allJobs = $derived(getJobs());
+  let isEmpty = $derived(allJobs.length === 0);
   let activeCount = $derived(getActiveCount());
   let pendingCount = $derived(getPendingCount());
   let doneCount = $derived(getDoneCount());
   let errorCount = $derived(getErrorCount());
+
+  let jobs = $derived.by(() => {
+    switch (filter) {
+      case "active": return allJobs.filter((j: DownloadJob) => j.status === "downloading" || j.status === "waiting");
+      case "pending": return allJobs.filter((j: DownloadJob) => j.status === "pending");
+      case "done": return allJobs.filter((j: DownloadJob) => j.status === "done");
+      case "error": return allJobs.filter((j: DownloadJob) => j.status === "error");
+      default: return allJobs;
+    }
+  });
+
+  function toggleFilter(f: Filter) {
+    filter = filter === f ? "all" : f;
+  }
 </script>
 
 <div class="queue-panel">
@@ -24,17 +42,28 @@
   {:else}
     <div class="queue-header">
       <div class="stats">
+        <button class="stat-filter" class:selected={filter === "all"} onclick={() => filter = "all"}>
+          {allJobs.length} all
+        </button>
         {#if activeCount > 0}
-          <span class="stat active">{activeCount} active</span>
+          <button class="stat-filter active" class:selected={filter === "active"} onclick={() => toggleFilter("active")}>
+            {activeCount} active
+          </button>
         {/if}
         {#if pendingCount > 0}
-          <span class="stat">{pendingCount} pending</span>
+          <button class="stat-filter pending" class:selected={filter === "pending"} onclick={() => toggleFilter("pending")}>
+            {pendingCount} pending
+          </button>
         {/if}
         {#if doneCount > 0}
-          <span class="stat done">{doneCount} done</span>
+          <button class="stat-filter done" class:selected={filter === "done"} onclick={() => toggleFilter("done")}>
+            {doneCount} done
+          </button>
         {/if}
         {#if errorCount > 0}
-          <span class="stat error">{errorCount} failed</span>
+          <button class="stat-filter error" class:selected={filter === "error"} onclick={() => toggleFilter("error")}>
+            {errorCount} failed
+          </button>
         {/if}
       </div>
       <div class="queue-actions">
@@ -98,22 +127,46 @@
     align-items: center;
   }
 
-  .stat {
+  .stat-filter {
     font-size: 11px;
     color: var(--text-muted);
     font-weight: 500;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .stat.active {
+  .stat-filter:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  }
+
+  .stat-filter.selected {
+    border-color: var(--text-muted);
+    background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  }
+
+  .stat-filter.active {
     color: var(--orange);
   }
-
-  .stat.done {
-    color: var(--green);
+  .stat-filter.active.selected {
+    border-color: var(--orange);
   }
 
-  .stat.error {
+  .stat-filter.done {
+    color: var(--green);
+  }
+  .stat-filter.done.selected {
+    border-color: var(--green);
+  }
+
+  .stat-filter.error {
     color: var(--red);
+  }
+  .stat-filter.error.selected {
+    border-color: var(--red);
   }
 
   .queue-actions {
